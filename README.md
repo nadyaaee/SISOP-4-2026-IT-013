@@ -1,5 +1,5 @@
 
-# SISOP-3-2026-IT-013
+# SISOP-4-2026-IT-013
 Laporan Resmi Praktikum Sistem Operasi Modul 2
 
 ## Penulis
@@ -244,22 +244,165 @@ int main(int argc, char *argv[])
 ```
 
 
+### Header Library
+```
+#define FUSE_USE_VERSION 28
+```
+Program menggunakan FUSE versi 28.
+```
+#include <fuse.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <dirent.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+```
+### Variabel Global
+```
+static char source_dir[1024];
+```
+Variabel ini menyimpan lokasi folder asli yang akan ditampilkan lewat mount FUSE.
+
+### Fungsi `build_real_path`
+```
+static void build_real_path(...)
+```
+Fungsi ini menggabungkan `source_dir` dengan path dari FUSE agar program tahu lokasi file aslinya.
+
+Jadi kalau user buka `/1.txt` di mount folder, program tahu file aslinya ada di `amba_files/1.txt`
+
+### Fungsi `build_tujuan_content`
+```
+static void build_tujuan_content(char *result)
+```
+Fungsi ini membuat isi file virtual `tujuan.txt` dari gabungan data `KOORD:` pada file `1.txt` sampai `7.txt`.
+
+Contoh isi `tujuan.txt` nanti:
+```
+Tujuan Mas Amba: koordinatgabungan
+```
+
+### Fungsi `kenz_getattr`
+```
+static int kenz_getattr(const char *path, struct stat *stbuf)
+```
+Fungsi ini dipanggil saat sistem ingin tahu informasi file atau folder.
+
+### Fungsi `kenz_readdir`
+```
+static int kenz_readdir(...)
+```
+Fungsi ini dipanggil saat user menjalankan:
+```
+ls mnt
+```
+Fungsinya menampilkan isi folder mount.
+
+### Fungsi `kenz_open`
+```
+static int kenz_open(const char *path, struct fuse_file_info *fi)
+```
+Fungsi ini dipanggil saat file dibuka.
+
+Contoh:
+```
+cat mnt/1.txt
+cat mnt/tujuan.txt
+```
+
+### Fungsi `kenz_read`
+```
+static int kenz_read(...)
+```
+Fungsi ini dipanggil saat isi file dibaca.
+
+Contoh:
+```
+cat mnt/1.txt
+cat mnt/tujuan.txt
+```
+
+### Struktur operasi FUSE
+```
+static struct fuse_operations kenz_oper = {
+    .getattr = kenz_getattr,
+    .readdir = kenz_readdir,
+    .open = kenz_open,
+    .read = kenz_read,
+};
+```
+Ini seperti daftar fungsi yang dipakai FUSE.
+
+### Fungsi `main`
+```
+int main(int argc, char *argv[])
+```
+Program mulai dari sini.
+
+```
+if (argc < 3) {
+    fprintf(stderr, "Usage: %s <source_dir> <mount_dir>\n", argv[0]);
+    return 1;
+}
+```
+Program harus dijalankan dengan 2 argumen:
+```
+./kenz_rescue <folder_asli> <folder_mount>
+```
+Contoh:
+```
+./kenz_rescue amba_files mnt
+```
+
+```
+realpath(argv[1], source_dir);
+```
+Mengubah path folder asli menjadi path lengkap.
+
+```
+char *fuse_argv[2];
+fuse_argv[0] = argv[0];
+fuse_argv[1] = argv[2];
+```
+Menyiapkan argumen untuk FUSE.
+
+```
+umask(0);
+```
+Agar permission file tidak otomatis dibatasi oleh sistem.
+
+```
+return fuse_main(fuse_argc, fuse_argv, &kenz_oper, NULL);
+```
+Menjalankan filesystem FUSE dengan operasi yang sudah dibuat.
 ## Output
 
-### Ambil file `Flashdisk` `amba_files.zip`
+### Ambil `amba_files.zip` dari `Flashdisk`
 ```
 mv ~/Downloads/amba_files.zip ~/SISOP-4-2026-IT-013/soal_1/
 ```
+Output
+
+![App Screenshot](https://github.com/nadyaaee/SISOP-4-2026-IT-013/blob/main/assets/zip.png?raw=true?raw=true)
 
 ### Unzip file
 ```
 unzip amba_files.zip
 ```
+Output
+
+![App Screenshot](https://github.com/nadyaaee/SISOP-4-2026-IT-013/blob/main/assets/unzip%20amba-files.png?raw=true)
 
 ### Hapus file zip
 ```
 rm amba_files.zip
 ```
+Output
+
+![App Screenshot](https://github.com/nadyaaee/SISOP-4-2026-IT-013/blob/main/assets/hapus%20zip.png?raw=true)
 
 ### Install FUSE
 ```
@@ -271,20 +414,47 @@ sudo apt install libfuse-dev fuse -y
 ```
 gcc -Wall `pkg-config fuse --cflags` kenz_rescue.c -o kenz_rescue `pkg-config fuse --libs`
 ```
+Output
+
+![App Screenshot](https://github.com/nadyaaee/SISOP-4-2026-IT-013/blob/main/assets/compile.png?raw=true)
+
 
 ### Buat Mount Directory
 ```
 mkdir mnt
 ```
-
-### Run
+Run
 ```
 ./kenz_rescue amba_files mnt
 ```
-atau 
+Output
+
+![App Screenshot](https://github.com/nadyaaee/SISOP-4-2026-IT-013/blob/main/assets/folder%20mnt.png?raw=true)
+
+### Testing
+Cek bahwa file virtual tidak ada di source
 ```
-./kenz_rescue -f amba_files mnt
+ls mnt/
 ```
+```
+ls amba_files/
+```
+Output 
+
+![App Screenshot](https://github.com/nadyaaee/SISOP-4-2026-IT-013/blob/main/assets/isi%20mnt%20dan%20amba_files.png?raw=true)
+
+
+Cek file passthrough
+```
+cat mnt/1.txt
+```
+Harus sama dengan:
+```
+cat amba_files/1.txt
+```
+Output
+
+![App Screenshot](https://github.com/nadyaaee/SISOP-4-2026-IT-013/blob/main/assets/isi%20txt%201.png?raw=true)
 
 ### Validasi Semua File
 ```
@@ -292,6 +462,18 @@ for i in 1 2 3 4 5 6 7; do
     diff mnt/$i.txt amba_files/$i.txt && echo "$i.txt OK"
 done
 ```
+Output
+
+![App Screenshot](https://github.com/nadyaaee/SISOP-4-2026-IT-013/blob/main/assets/ok.png?raw=true)
+
+### Cek file virtual
+```
+cat mnt/tujuan.txt
+```
+Output
+
+![App Screenshot](https://github.com/nadyaaee/SISOP-4-2026-IT-013/blob/main/assets/tujuan%20txt.png?raw=true)
+
 
 ### Unmount
 ```
@@ -301,5 +483,6 @@ atau
 ```
 sudo umount mnt
 ```
+
 
 
